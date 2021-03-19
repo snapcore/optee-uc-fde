@@ -1,0 +1,11 @@
+*.swp
+cscope.*
+out
+.cproject
+.project
+parts
+stage
+prime
+snap/.snapcraft/
+*.snap
+.project
