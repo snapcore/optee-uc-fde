@@ -47,7 +47,6 @@
 #define FDE_JSON_KEY               "key"
 #define FDE_JSON_KEY_NAME          "key-name"
 #define FDE_JSON_SEALED_KEY        "sealed-key"
-#define FDE_JSON_SEALED_KEY_NAME   "sealed-key-name"
 #define FDE_JSON_HANDLE            "handle"
 #define FDE_JSON_RESULT_FEATURES   "{\"features\":[]}"
 
@@ -191,7 +190,6 @@ int handle_operation_reveal(struct json_object *request_json) {
     int ret = EXIT_SUCCESS;
     struct json_object *j_key = NULL;
     struct json_object *j_handle = NULL;
-    struct json_object *j_key_name = NULL;
     struct json_object *j_response = NULL;
     struct json_object *j_unsealed_key = NULL;
     json_bool j_ret;
@@ -204,7 +202,7 @@ int handle_operation_reveal(struct json_object *request_json) {
     char *unsealed_key = NULL;
 
     // get other request data:
-    //   FDE_JSON_SEALED_KEY | FDE_JSON_SEALED_KEY_NAME | FDE_JSON_HANDLE
+    //   FDE_JSON_SEALED_KEY | FDE_JSON_HANDLE
     j_ret = json_object_object_get_ex(request_json,
                                       FDE_JSON_SEALED_KEY,
                                       &j_key);
@@ -242,17 +240,6 @@ int handle_operation_reveal(struct json_object *request_json) {
            ree_log(REE_ERROR, "failed to decode key handle base64");
            ret = EXIT_FAILURE;
            goto cleanup;
-    }
-
-    j_ret = json_object_object_get_ex(request_json,
-                                      FDE_JSON_SEALED_KEY_NAME,
-                                      &j_key_name);
-    if ((j_ret != TRUE)||
-        (json_type_string != json_object_get_type(j_key_name))
-       ) {
-        ree_log(REE_ERROR, "sealed key name json malformed[%d]", j_ret);
-        ret = EXIT_FAILURE;
-        goto cleanup;
     }
 
     // call crypto operation
@@ -340,7 +327,7 @@ int handle_operation_setup(struct json_object *request_json) {
     const char *result = NULL;
 
     // get other request data:
-    // FDE_JSON_SEALED_KEY | FDE_JSON_SEALED_KEY_NAME | FDE_JSON_HANDLE
+    // FDE_JSON_KEY | FDE_JSON_KEY_NAME
     j_ret = json_object_object_get_ex(request_json,
                                       FDE_JSON_KEY,
                                       &j_key);
@@ -516,7 +503,7 @@ int handle_fde_operation(char *request_str) {
  *   - supported operations:
  *     - reveal:
  *         - request: { "op": "reveal", "sealed-key": "base64-encoded-bytes",
- *                 "handle": "base64-encoded-bytes", "sealed-key-name": "string"}
+ *                 "handle": {} "base64-encoded-bytes"}
  *         - result: {"key": "base64-encoded-bytes"}
  *     - lock:
  *         - request: { "op": "lock" }
@@ -529,7 +516,7 @@ int handle_fde_operation(char *request_str) {
  *     - fde-setup:
  *       - request: {"op": "initial-setup","key": "base64-encoded-bytes",
  *              "key-name" : "string"}
- *       - result: {"encrypted-key": "base64-encoded-bytes",
+ *       - result: {"sealed-key": "base64-encoded-bytes",
  *               "handle": "base64-encoded-bytes"}
  */
 int main(int argc, char *argv[]) {
