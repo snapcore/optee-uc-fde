@@ -518,6 +518,8 @@ int handle_fde_operation(char *request_str) {
  *              "key-name" : "string"}
  *       - result: {"sealed-key": "base64-encoded-bytes",
  *               "handle": "base64-encoded-bytes"}
+ *       - request: {"op":"features"}
+ *       - result: {"features": []}
  */
 int main(int argc, char *argv[]) {
     int ret = EXIT_SUCCESS;
