@@ -551,6 +551,8 @@ int main(int argc, char *argv[]) {
             ree_log(REE_ERROR, "main: empty request string");
             ret = EXIT_FAILURE;
         }
+        // handle systemd bug when returning too fast can take down systempd, ups
+        usleep(500000);
         return ret;
     }
 
