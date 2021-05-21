@@ -68,10 +68,35 @@ TEEC_Result invode_command(uint32_t cmd_id, TEEC_Operation *operation) {
     return ret;
 }
 
-TEEC_Result handle_key(uint32_t op,
-                       unsigned char *in_buf, size_t in_buf_len,
-                       unsigned char *handle, size_t handle_len,
-                       unsigned char *out_buf, size_t *out_buf_len) {
+TEEC_Result encrypt_key(unsigned char *in_buf, size_t in_buf_len,
+                        unsigned char *handle, size_t *handle_len,
+                        unsigned char *out_buf, size_t *out_buf_len) {
+    TEEC_Operation operation;
+    TEEC_Result ret;
+    memset(&operation, 0x0, sizeof(operation));
+    operation.started = 1;
+    operation.paramTypes = TEEC_PARAM_TYPES(TEEC_MEMREF_TEMP_INPUT,
+                                            TEEC_MEMREF_TEMP_OUTPUT,
+                                            TEEC_MEMREF_TEMP_OUTPUT,
+                                            TEE_PARAM_TYPE_NONE);
+    operation.params[0].tmpref.size = in_buf_len;
+    operation.params[0].tmpref.buffer = in_buf;
+    operation.params[1].tmpref.size = *handle_len;
+    operation.params[1].tmpref.buffer = handle;
+    operation.params[2].tmpref.size = *out_buf_len;
+    operation.params[2].tmpref.buffer = out_buf;
+
+    ret = invode_command(TA_CMD_KEY_ENCRYPT, &operation);
+    if (ret == TEEC_SUCCESS) {
+        *handle_len = operation.params[1].tmpref.size;
+        *out_buf_len = operation.params[2].tmpref.size;
+    }
+    return ret;
+}
+
+TEEC_Result decrypt_key(unsigned char *in_buf, size_t in_buf_len,
+                        unsigned char *handle, size_t handle_len,
+                        unsigned char *out_buf, size_t *out_buf_len) {
     TEEC_Operation operation;
     TEEC_Result ret;
     memset(&operation, 0x0, sizeof(operation));
@@ -87,7 +112,7 @@ TEEC_Result handle_key(uint32_t op,
     operation.params[2].tmpref.size = *out_buf_len;
     operation.params[2].tmpref.buffer = out_buf;
 
-    ret = invode_command(op, &operation);
+    ret = invode_command(TA_CMD_KEY_DECRYPT, &operation);
     if (ret == TEEC_SUCCESS) {
         *out_buf_len = operation.params[2].tmpref.size;
     }

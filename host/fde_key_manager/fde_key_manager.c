@@ -32,7 +32,6 @@
 
 #define MAX_JSON_BUF_SIZE   (1024 * 10)
 #define MAX_BASE64_BUF_SIZE (MAX_BUF_SIZE / 3 * 4 + 4)
-#define KEY_HANDLE_BUF_SIZE 32
 
 #define FDE_SETUP "fde-setup"
 #define FDE_REVEAL_KEY "fde-reveal-key"
@@ -251,13 +250,12 @@ int handle_operation_reveal(struct json_object *request_json) {
         goto cleanup;
     }
 
-    ret = handle_key(TA_CMD_KEY_DECRYPT,
-                     sealed_key_buf,
-                     sealed_key_buf_len,
-                     handle_buf,
-                     handle_buf_len,
-                     unsealed_key_buf,
-                     &unsealed_key_buf_len);
+    ret = decrypt_key(sealed_key_buf,
+                      sealed_key_buf_len,
+                      handle_buf,
+                      handle_buf_len,
+                      unsealed_key_buf,
+                      &unsealed_key_buf_len);
     if (ret) {
         ree_log(REE_ERROR, "Key decrypt crypto operation failed: 0x%X", ret);
         goto cleanup;
@@ -359,16 +357,9 @@ int handle_operation_setup(struct json_object *request_json) {
         goto cleanup;
     }
 
-    // generate handle
-    handle_buf_len = KEY_HANDLE_BUF_SIZE;
-    handle_buf = generate_rng(handle_buf_len);
-    if (!handle_buf) {
-        ree_log(REE_ERROR, "Failed to generate random handle");
-        ret = EXIT_FAILURE;
-        goto cleanup;
-    }
-
     // encrypt key
+    handle_buf_len = HANDLE_SIZE;
+    handle_buf = (char *)malloc(HANDLE_SIZE);
     sealed_key_buf_len = MAX_BUF_SIZE;
     sealed_key_buf = (char *)malloc(MAX_BUF_SIZE);
     if (!sealed_key_buf) {
@@ -376,13 +367,14 @@ int handle_operation_setup(struct json_object *request_json) {
         ret = EXIT_FAILURE;
         goto cleanup;
     }
-    ret = handle_key(TA_CMD_KEY_ENCRYPT,
-                     unsealed_key_buf,
-                     unsealed_key_buf_len,
-                     handle_buf,
-                     handle_buf_len,
-                     sealed_key_buf,
-                     &sealed_key_buf_len);
+
+    ret = encrypt_key(unsealed_key_buf,
+                      unsealed_key_buf_len,
+                      handle_buf,
+                      &handle_buf_len,
+                      sealed_key_buf,
+                      &sealed_key_buf_len);
+
     if (ret) {
         ree_log(REE_ERROR, "Key encrypt crypto operation failed: 0x%X", ret);
         goto cleanup;
@@ -583,7 +575,7 @@ int main(int argc, char *argv[]) {
         if (argc > 2) {
           buf_len = atoi(argv[2]);
         } else {
-          buf_len = KEY_HANDLE_BUF_SIZE;
+          buf_len = HANDLE_SIZE;
         }
         buf = generate_rng(buf_len);
         if (!buf) {
