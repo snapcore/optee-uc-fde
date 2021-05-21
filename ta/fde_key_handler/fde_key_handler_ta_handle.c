@@ -30,14 +30,14 @@
 #include "fde_key_handler_ta_handle.h"
 
 #define IV_SIZE         16
+#define NONCE_SIZE      32
 #define TAG_SIZE        16
 
-// Trusted Key header
-struct tk_blob_hdr {
-    uint8_t reserved;
+// Trusted Key Handle
+struct key_handle {
     uint8_t iv[IV_SIZE];
+    uint8_t nonce[NONCE_SIZE];
     uint8_t tag[TAG_SIZE];
-    uint8_t enc_key[];
 };
 
 /**
@@ -93,53 +93,42 @@ static TEE_Result derive_ta_unique_key(uint8_t *key,
 }
 
 static TEE_Result do_key_encrypt( TEE_OperationHandle crypto_op,
-                                  uint8_t *in, uint32_t in_sz,
-                                  uint8_t *out, uint32_t *out_sz) {
+                                  uint8_t *key, uint32_t key_sz,
+                                  uint8_t *enc_key, uint32_t *enc_key_sz,
+                                  struct key_handle *handle) {
 
     TEE_Result res = TEE_ERROR_GENERIC;
-    struct tk_blob_hdr *hdr = (struct tk_blob_hdr *)out;
-    uint8_t iv[IV_SIZE] = { 0 };
-    uint32_t enc_key_len = in_sz;
     uint32_t tag_len = TAG_SIZE;
-    hdr->reserved = 'U';
-    TEE_GenerateRandom(iv, IV_SIZE);
-    memcpy(hdr->iv, iv, IV_SIZE);
 
-    res = TEE_AEInit(crypto_op, hdr->iv, IV_SIZE, TAG_SIZE * 8, 0, 0);
+    res = TEE_AEInit(crypto_op, handle->iv, IV_SIZE, TAG_SIZE * 8, 0, 0);
     if (res)
       return res;
 
-    res = TEE_AEEncryptFinal(crypto_op, in, in_sz, hdr->enc_key,
-           &enc_key_len, hdr->tag, &tag_len);
-    if (res || tag_len != TAG_SIZE)
-      return TEE_ERROR_SECURITY;
-
-    if (ADD_OVERFLOW(enc_key_len, sizeof(*hdr), out_sz))
+    res = TEE_AEEncryptFinal(crypto_op, key, key_sz, enc_key,
+                             enc_key_sz, handle->tag, &tag_len);
+    if (res || tag_len != TAG_SIZE || *enc_key_sz != key_sz)
       return TEE_ERROR_SECURITY;
 
     return res;
 }
 
 static TEE_Result do_key_decrypt( TEE_OperationHandle crypto_op,
-                                  uint8_t *in, uint32_t in_sz,
-                                  uint8_t *out, uint32_t *out_sz) {
+                                  uint8_t *enc_key, uint32_t enc_key_sz,
+                                  uint8_t *key, uint32_t *key_sz,
+                                  struct key_handle *handle) {
 
     TEE_Result res = TEE_ERROR_GENERIC;
-    struct tk_blob_hdr *hdr = (struct tk_blob_hdr *)in;
     uint8_t tag[TAG_SIZE] = { 0 };
-    uint32_t enc_key_len = 0;
 
-    if (SUB_OVERFLOW(in_sz, sizeof(*hdr), &enc_key_len))
-      return TEE_ERROR_SECURITY;
-
-    res = TEE_AEInit(crypto_op, hdr->iv, IV_SIZE, TAG_SIZE * 8, 0, 0);
+    res = TEE_AEInit(crypto_op, handle->iv, IV_SIZE, TAG_SIZE * 8, 0, 0);
     if (res)
       return res;
 
-    memcpy(tag, hdr->tag, TAG_SIZE);
-    res = TEE_AEDecryptFinal(crypto_op, hdr->enc_key, enc_key_len, out,
-           out_sz, tag, TAG_SIZE);
-    if (res)
+    memcpy(tag, handle->tag, TAG_SIZE);
+    res = TEE_AEDecryptFinal(crypto_op, enc_key, enc_key_sz, key,
+           key_sz, tag, TAG_SIZE);
+
+    if (res || enc_key_sz != *key_sz)
       res = TEE_ERROR_SECURITY;
 
     return res;
@@ -148,7 +137,7 @@ static TEE_Result do_key_decrypt( TEE_OperationHandle crypto_op,
 static TEE_Result do_key_crypto( TEE_OperationMode mode,
                                  uint8_t *in, uint32_t in_size,
                                  uint8_t *out, uint32_t *out_size,
-                                 uint8_t *handle, uint32_t handle_size) {
+                                 struct key_handle *handle) {
 
     TEE_Result res = TEE_ERROR_GENERIC;
     TEE_OperationHandle crypto_op = TEE_HANDLE_NULL;
@@ -161,7 +150,7 @@ static TEE_Result do_key_crypto( TEE_OperationMode mode,
     if (res)
       return res;
 
-    res = derive_ta_unique_key(huk_key, sizeof(huk_key), handle, handle_size);
+    res = derive_ta_unique_key(huk_key, sizeof(huk_key), handle->nonce, sizeof(handle->nonce));
     if (res) {
       EMSG("derive_unique_key failed: returned %#"PRIx32, res);
       goto out_op;
@@ -185,9 +174,9 @@ static TEE_Result do_key_crypto( TEE_OperationMode mode,
     }
 
     if (mode == TEE_MODE_ENCRYPT) {
-      res = do_key_encrypt(crypto_op, in, in_size, out, out_size);
+      res = do_key_encrypt(crypto_op, in, in_size, out, out_size, handle);
     } else if (mode == TEE_MODE_DECRYPT) {
-      res = do_key_decrypt(crypto_op, in, in_size, out, out_size);
+      res = do_key_decrypt(crypto_op, in, in_size, out, out_size, handle);
     } else {
       TEE_Panic(0);
     }
@@ -212,54 +201,60 @@ TEE_Result key_crypto( TEE_OperationMode mode,
     uint32_t in_size = 0;
     uint8_t *out = NULL;
     uint32_t out_size = 0;
-    uint8_t *handle = NULL;
-    uint32_t handle_size = 0;
-    uint32_t size_alignment_up = 0;
-    uint32_t size_alignment_down = 0;
+    struct key_handle * handle = NULL;
+    uint8_t *handle_buf = NULL;
+    uint32_t handle_buf_size = 0;
 
     DMSG("Handle key crypto");
 
-    if (paramTypes != TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INPUT,
-                                      TEE_PARAM_TYPE_MEMREF_INPUT,
-                                      TEE_PARAM_TYPE_MEMREF_OUTPUT,
-                                      TEE_PARAM_TYPE_NONE))
+    if (mode == TEE_MODE_ENCRYPT) {
+      if (paramTypes != TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INPUT,
+                                        TEE_PARAM_TYPE_MEMREF_OUTPUT,
+                                        TEE_PARAM_TYPE_MEMREF_OUTPUT,
+                                        TEE_PARAM_TYPE_NONE))
+        return TEE_ERROR_BAD_PARAMETERS;
+    } else if (mode == TEE_MODE_DECRYPT) {
+      if (paramTypes != TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INPUT,
+                                        TEE_PARAM_TYPE_MEMREF_INPUT,
+                                        TEE_PARAM_TYPE_MEMREF_OUTPUT,
+                                        TEE_PARAM_TYPE_NONE))
+        return TEE_ERROR_BAD_PARAMETERS;
+    } else {
       return TEE_ERROR_BAD_PARAMETERS;
+    }
 
     in = params[0].memref.buffer;
     in_size = params[0].memref.size;
-    handle = params[1].memref.buffer;
-    handle_size = params[1].memref.size;
+    handle_buf = params[1].memref.buffer;
+    handle_buf_size = params[1].memref.size;
     out = params[2].memref.buffer;
     out_size = params[2].memref.size;
-    if (mode == TEE_MODE_ENCRYPT) {
-      size_alignment_up = sizeof(struct tk_blob_hdr);
-    } else if (mode == TEE_MODE_DECRYPT) {
-      size_alignment_down = sizeof(struct tk_blob_hdr);
-    } else {
-      TEE_Panic(0);
-    }
+
     if ((!in && in_size) || in_size > MAX_BUF_SIZE) {
       return TEE_ERROR_BAD_PARAMETERS;
     }
     if ((!out && out_size) || out_size > MAX_BUF_SIZE) {
       return TEE_ERROR_BAD_PARAMETERS;
     }
-    if ((in_size + size_alignment_up - size_alignment_down) > out_size) {
-      params[1].memref.size = (in_size + size_alignment_up - size_alignment_down);
-      return TEE_ERROR_SHORT_BUFFER;
-    }
-    if ((mode == TEE_MODE_DECRYPT) && !ALIGNMENT_IS_OK(in, struct tk_blob_hdr)) {
-      return TEE_ERROR_BAD_PARAMETERS;
-    }
-    if ((mode == TEE_MODE_ENCRYPT) && !ALIGNMENT_IS_OK(out, struct tk_blob_hdr)) {
+    if ((!handle_buf && handle_buf_size) || handle_buf_size != sizeof(struct key_handle)) {
       return TEE_ERROR_BAD_PARAMETERS;
     }
 
-    res = do_key_crypto(mode, in, in_size, out, &out_size, handle, handle_size);
+    handle = (struct key_handle *)handle_buf;
+    // generate random iv and handle for encryption operation
+    if (mode == TEE_MODE_ENCRYPT) {
+      TEE_GenerateRandom(handle->nonce, NONCE_SIZE);
+      TEE_GenerateRandom(handle->iv, IV_SIZE);
+    }
+
+    res = do_key_crypto(mode, in, in_size, out, &out_size, handle);
     if (res == TEE_SUCCESS) {
       // check size of output buffer, depending on op
-      assert(out_size == in_size + size_alignment_up - size_alignment_down);
+      assert(out_size == in_size);
       params[2].memref.size = out_size;
+      if (mode == TEE_MODE_ENCRYPT) {
+        params[1].memref.size = sizeof(struct key_handle);
+      }
     }
     return res;
 }

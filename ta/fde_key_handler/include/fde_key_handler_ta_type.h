@@ -26,6 +26,7 @@
 }
 
 #define MAX_BUF_SIZE    512
+#define HANDLE_SIZE     64 // IV(16), NONCE(32), TAG(16)
 
 /* Define the command index in this TA */
 
@@ -36,8 +37,8 @@
  * - TEE_PARAM_TYPE_MEMREF_INPUT
  *    params[0].memref.buffer: plain key buffer
  *    params[0].memref.size: lenght of the buffer
- * - TEE_PARAM_TYPE_MEMREF_INPUT
- *    params[1].memref.buffer: key handle
+ * - TEE_PARAM_TYPE_MEMREF_OUTPUT
+ *    params[1].memref.buffer: returned key handle
  *    params[1].memref.size: lenght of the buffer
  * - TEE_PARAM_TYPE_MEMREF_OUTPUT
  *    params[2].memref.buffer: returned encrypted key
