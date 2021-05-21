@@ -503,7 +503,7 @@ int handle_fde_operation(char *request_str) {
  *   - supported operations:
  *     - reveal:
  *         - request: { "op": "reveal", "sealed-key": "base64-encoded-bytes",
- *                 "handle": {} "base64-encoded-bytes"}
+ *                 "handle": "base64-encoded-bytes"}
  *         - result: {"key": "base64-encoded-bytes"}
  *     - lock:
  *         - request: { "op": "lock" }
@@ -559,7 +559,7 @@ int main(int argc, char *argv[]) {
     /**
      * handle test commands
      * supported operations:
-     *  --ta-lock-status: get TA locl status
+     *  --ta-lock-status: get TA lock status
      *  --lock-ta: lock TA
      *  --generate-random: generate random number
      *  --help: print help
