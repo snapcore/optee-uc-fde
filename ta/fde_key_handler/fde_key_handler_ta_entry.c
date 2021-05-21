@@ -75,7 +75,7 @@ TEE_Result TA_InvokeCommandEntryPoint( void __maybe_unused *session_context,
         case TA_CMD_LOCK:
             return lock_ta(paramTypes, params);
         case TA_CMD_GET_LOCK:
-      	  	return get_ta_lock(paramTypes, params);
+            return get_ta_lock(paramTypes, params);
         case TA_CMD_GEN_RANDOM:
             return generate_random(paramTypes, params);
         default:
@@ -96,7 +96,7 @@ static TEE_Result lock_ta( uint32_t paramTypes,
 
     DMSG("Locking TA for further use\n");
     _ta_lock = TA_LOCKED;
-  	return TEE_SUCCESS;
+    return TEE_SUCCESS;
 }
 
 static TEE_Result get_ta_lock( uint32_t paramTypes,
@@ -109,5 +109,5 @@ static TEE_Result get_ta_lock( uint32_t paramTypes,
         return TEE_ERROR_BAD_PARAMETERS;
 
     params[0].value.a = _ta_lock;
-  	return TEE_SUCCESS;
+    return TEE_SUCCESS;
 }
