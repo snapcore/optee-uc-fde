@@ -32,9 +32,11 @@
 #define IV_SIZE         16
 #define NONCE_SIZE      32
 #define TAG_SIZE        16
+#define KEY_HANDLE_VERSION 'U'
 
 // Trusted Key Handle
 struct key_handle {
+    uint8_t version; // reserved to recognise the version
     uint8_t iv[IV_SIZE];
     uint8_t nonce[NONCE_SIZE];
     uint8_t tag[TAG_SIZE];
@@ -245,6 +247,9 @@ TEE_Result key_crypto( TEE_OperationMode mode,
     if (mode == TEE_MODE_ENCRYPT) {
       TEE_GenerateRandom(handle->nonce, NONCE_SIZE);
       TEE_GenerateRandom(handle->iv, IV_SIZE);
+      handle->version = KEY_HANDLE_VERSION;
+    } else {
+      assert(handle->version == KEY_HANDLE_VERSION);
     }
 
     res = do_key_crypto(mode, in, in_size, out, &out_size, handle);

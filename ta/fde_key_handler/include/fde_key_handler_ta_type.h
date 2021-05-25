@@ -26,7 +26,7 @@
 }
 
 #define MAX_BUF_SIZE    512
-#define HANDLE_SIZE     64 // IV(16), NONCE(32), TAG(16)
+#define HANDLE_SIZE     65  // (version)(1), IV(16), NONCE(32), TAG(16)
 
 /* Define the command index in this TA */
 
