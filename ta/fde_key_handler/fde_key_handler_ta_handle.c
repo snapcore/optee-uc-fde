@@ -206,6 +206,7 @@ TEE_Result key_crypto( TEE_OperationMode mode,
     struct key_handle * handle = NULL;
     uint8_t *handle_buf = NULL;
     uint32_t handle_buf_size = 0;
+    uint8_t *rng_buf = NULL;
 
     DMSG("Handle key crypto");
 
@@ -245,8 +246,17 @@ TEE_Result key_crypto( TEE_OperationMode mode,
     handle = (struct key_handle *)handle_buf;
     // generate random iv and handle for encryption operation
     if (mode == TEE_MODE_ENCRYPT) {
-      TEE_GenerateRandom(handle->nonce, NONCE_SIZE);
-      TEE_GenerateRandom(handle->iv, IV_SIZE);
+      // on some plartforms we can't call TEE_GenerateRandom twice in
+      // single session, generate all randomness in one go.
+      rng_buf = TEE_Malloc(IV_SIZE + NONCE_SIZE, TEE_MALLOC_FILL_ZERO);
+      if (!rng_buf)
+        return TEE_ERROR_OUT_OF_MEMORY;
+
+      TEE_GenerateRandom(rng_buf, IV_SIZE + NONCE_SIZE);
+      memcpy(handle->iv, rng_buf, IV_SIZE);
+      memcpy(handle->nonce, rng_buf + IV_SIZE, NONCE_SIZE);
+      memzero_explicit(rng_buf, IV_SIZE + NONCE_SIZE);
+      TEE_Free(rng_buf);
       handle->version = KEY_HANDLE_VERSION;
     } else {
       assert(handle->version == KEY_HANDLE_VERSION);
