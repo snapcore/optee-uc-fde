@@ -49,6 +49,9 @@
 #define FDE_JSON_HANDLE            "handle"
 #define FDE_JSON_RESULT_FEATURES   "{\"features\":[]}"
 
+// by default we print sesult to stdout
+static int snapctl_output = 0;
+
 // helper wrapper around mbedtls_base64_encode function
 char *basee64_encode(const unsigned char *in_buf, size_t in_buf_len) {
     int ret = EXIT_SUCCESS;
@@ -162,6 +165,14 @@ int set_fde_setup_request_result(const unsigned char * result, int len) {
     return ret;
 }
 
+int set_result(const unsigned char * result, int len) {
+    if (snapctl_output) {
+        return set_fde_setup_request_result(result, len);
+    } else {
+        return fprintf( stdout, "%s\n",result);
+    }
+}
+
 char *get_reveal_key_request() {
     size_t b_read = 0;
     size_t size_remaining;
@@ -199,6 +210,7 @@ int handle_operation_reveal(struct json_object *request_json) {
     size_t handle_buf_len = 0;
     size_t unsealed_key_buf_len = 0;
     char *unsealed_key = NULL;
+    const char *result;
 
     // get other request data:
     //   FDE_JSON_SEALED_KEY | FDE_JSON_HANDLE
@@ -281,7 +293,8 @@ int handle_operation_reveal(struct json_object *request_json) {
     json_object_object_add(j_response, FDE_JSON_KEY, j_unsealed_key);
     // ownership of j_unsealed_key has been taken by j_response
     j_unsealed_key =  NULL;
-    fprintf( stdout, "%s\n",json_object_to_json_string(j_response));
+    result = json_object_to_json_string(j_response);
+    set_result(result, strlen(result));
 
     cleanup:
         if (sealed_key_buf)
@@ -418,7 +431,7 @@ int handle_operation_setup(struct json_object *request_json) {
     result = json_object_to_json_string(j_response);
 
     // pass result back
-    ret = set_fde_setup_request_result(result, strlen(result));
+    ret = set_result(result, strlen(result));
 
     cleanup:
         if (handle_buf)
@@ -441,7 +454,7 @@ int handle_operation_setup(struct json_object *request_json) {
 
 int handle_operation_feature(struct json_object *request_json) {
     // this operation is not supported, return default empty output
-    return set_fde_setup_request_result(FDE_JSON_RESULT_FEATURES,
+    return set_result(FDE_JSON_RESULT_FEATURES,
                                         strlen(FDE_JSON_RESULT_FEATURES));
 }
 
@@ -522,15 +535,18 @@ int main(int argc, char *argv[]) {
     size_t buf_len = 0;
     ree_log(REE_INFO, "main: entry point");
     if (argc == 1) {
-        // handle hook run scenario
+        // handle hook run scenarios
+        // depending on hook type, we pass result on stdout or to snapctl
         if (!strncmp(basename(argv[0]),
                               FDE_SETUP,
                               strlen(FDE_SETUP))) {
             request_str = get_fde_setup_request();
+            snapctl_output = 1;
         } else if (!strncmp(basename(argv[0]),
                             FDE_REVEAL_KEY,
                             strlen(FDE_REVEAL_KEY))) {
             request_str = get_reveal_key_request();
+            snapctl_output = 0;
         } else {
             ree_log(REE_ERROR, "Unknown invocation" );
             print_help();
