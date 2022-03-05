@@ -30,12 +30,68 @@
 
 #include <stdarg.h>
 
+#include "base64.h"
 #include "fde_key_handler_ta_type.h"
 
 #include "fde_key_manager_ca.h"
 
 // debug log definition
 #define REE_LOG_LEVEL REE_DEBUG
+
+#define MAX_BASE64_BUF_SIZE (MAX_BUF_SIZE / 3 * 4 + 4)
+// helper wrapper around mbedtls_base64_encode function
+char *basee64_encode(const unsigned char *in_buf, size_t in_buf_len) {
+    int ret = EXIT_SUCCESS;
+    size_t base64_len;
+    char *encoded_buffer = NULL;
+    encoded_buffer = (char *)malloc(MAX_BASE64_BUF_SIZE);
+    if (!encoded_buffer) {
+        ree_log(REE_ERROR, "basee64_encode failed to allock buffer");
+        return NULL;
+    }
+    ret = mbedtls_base64_encode(encoded_buffer,
+                              MAX_BASE64_BUF_SIZE,
+                              &base64_len,
+                              in_buf,
+                              in_buf_len );
+    if (ret) {
+        ree_log(REE_ERROR, "basee64_encode failed with: 0x%x", ret);
+        free(encoded_buffer);
+        encoded_buffer = NULL;
+    }
+    if (strlen(encoded_buffer) != base64_len) {
+        ree_log(REE_ERROR, "basee64_encode: string lengths do not align");
+        free(encoded_buffer);
+        encoded_buffer = NULL;
+    }
+    return encoded_buffer;
+}
+
+// helper wrapper around mbedtls_base64_decode function
+unsigned char *basee64_decode(const char *in_buf, size_t in_buf_len, size_t *buf_len) {
+    int ret = EXIT_SUCCESS;
+    char *decoded_buffer = NULL;
+    if (strlen(in_buf) != in_buf_len) {
+        ree_log(REE_ERROR, "basee64_decode: string lengths do not align");
+        return NULL;
+    }
+    decoded_buffer = (char *)malloc(MAX_BUF_SIZE);
+    if (!decoded_buffer) {
+        ree_log(REE_ERROR, "basee64_decode failed allock fail");
+        return NULL;
+    }
+    ret = mbedtls_base64_decode(decoded_buffer,
+                                MAX_BUF_SIZE,
+                                buf_len,
+                                in_buf,
+                                in_buf_len );
+    if (ret) {
+        ree_log(REE_ERROR, "basee64_decode failed with: 0x%x", ret);
+        free(decoded_buffer);
+        decoded_buffer = NULL;
+    }
+    return decoded_buffer;
+}
 
 TEEC_Result invode_command(uint32_t cmd_id, TEEC_Operation *operation) {
     TEEC_Context context;
