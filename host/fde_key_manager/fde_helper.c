@@ -71,7 +71,26 @@ static uint64_t opt_luks2_keyslots_size   = 0;
 
 enum Modes {unknown, automatic, manual};
 
+int store_sealed_key(struct crypt_device *cd,
+                     char* key,
+                     int key_len,
+                     int key_slot_id,
+                     int token_id);
 
+int unlock_volume(struct crypt_device *cd,
+                  const char *label,
+                  const char* key,
+                  int key_len,
+                  int key_slot_id,
+                  uint32_t activate_flags);
+
+static int unseal_key_from_token(struct crypt_device *cd,
+                          int token_id,
+                          char **buffer,
+                          size_t *buffer_len,
+                          int* key_slot_id);
+
+void sec_free_buffer(void *buffer, size_t buffer_len);
 
 /*
  * Device size string parsing, suffixes:
@@ -198,7 +217,7 @@ static void print_help(void) {
     printf("\n");
 }
 
-int store_sealed_key(struct crypt_device *cd, 
+int store_sealed_key(struct crypt_device *cd,
                      char* key,
                      int key_len,
                      int key_slot_id,
@@ -328,6 +347,7 @@ int store_sealed_key(struct crypt_device *cd,
         ree_log(REE_WARNING,
                 "Other than desired token was used!!"); 
     }
+
     if (key_slot_id != CRYPT_ANY_SLOT) {
         ret = crypt_token_assign_keyslot(cd, token, key_slot_id);
         if (ret < 0) {
@@ -386,10 +406,14 @@ int unlock_volume(struct crypt_device *cd,
     }
 }
 
-int unlock_from_token(struct crypt_device *cd,
-                      int token_id,
-                      const char *label,
-                      uint32_t activate_flags) {
+/**
+ * op-tee token handler implementation of crypt_token_open_func
+ */
+static int unseal_key_from_token(struct crypt_device *cd,
+                          int token_id,
+                          char **buffer,
+                          size_t *buffer_len,
+                          int*  key_slot_id) {
     const char *token;
     json_bool j_ret;
     int ret = EXIT_SUCCESS;
@@ -400,12 +424,9 @@ int unlock_from_token(struct crypt_device *cd,
     struct json_object *j_keyslot_id = NULL;
     unsigned char *sealed_key_buf = NULL;
     unsigned char *handle_buf = NULL;
-    unsigned char *unsealed_key_buf = NULL;
     size_t sealed_key_buf_len = 0;
     size_t handle_buf_len = 0;
-    size_t unsealed_key_buf_len = 0;
     char *unsealed_key = NULL;
-    int key_slot_id;
 
     ret = crypt_token_json_get(cd, token_id, &token);
     if (ret < 0) {
@@ -487,12 +508,12 @@ int unlock_from_token(struct crypt_device *cd,
     }
     
     // keyslot id is string, we need to get int
-    key_slot_id = atoi(json_object_get_string(j_keyslot_id));
+    *key_slot_id = atoi(json_object_get_string(j_keyslot_id));
 
     // call crypto operation
-    unsealed_key_buf_len = MAX_BUF_SIZE;
-    unsealed_key_buf = (unsigned char *)malloc(unsealed_key_buf_len);
-    if (!unsealed_key_buf){
+    *buffer_len = MAX_BUF_SIZE;
+    *buffer = (unsigned char *)malloc(*buffer_len);
+    if (!*buffer){
         ree_log(REE_ERROR, "unsealed_key buf alloc failed");
         ret = EXIT_FAILURE;
         goto cleanup;
@@ -502,32 +523,103 @@ int unlock_from_token(struct crypt_device *cd,
                       sealed_key_buf_len,
                       handle_buf,
                       handle_buf_len,
-                      unsealed_key_buf,
-                      &unsealed_key_buf_len);
+                      *buffer,
+                      buffer_len);
     if (ret) {
         ree_log(REE_ERROR, "Key decrypt crypto operation failed: 0x%X", ret);
+        if (*buffer)
+            sec_free_buffer(*buffer, *buffer_len);
         goto cleanup;
     }
-
-    // unlock
-    ret = unlock_volume(cd,
-                        label,
-                        unsealed_key_buf,
-                        unsealed_key_buf_len,
-                        key_slot_id,
-                        activate_flags);
 
     cleanup:
         if (sealed_key_buf)
             free(sealed_key_buf);
         if (handle_buf)
             free(handle_buf);
-        if (unsealed_key_buf)
-            free(unsealed_key_buf);
         if (unsealed_key)
             free(unsealed_key);
 
         return ret;
+}
+
+/**
+ * op-tee token handler implementation of crypt_token_open_func
+ */
+static int optee_open_token(struct crypt_device *cd,
+                          int token_id,
+                          char **buffer,
+                          size_t *buffer_len,
+                          void *usrptr) {
+    int key_slot_id;
+    return unseal_key_from_token(cd, token_id, buffer, buffer_len, &key_slot_id);
+}
+
+// typedef void (*crypt_token_buffer_free_func) (void *buffer, size_t buffer_len);
+void sec_free_buffer(void *buffer, size_t buffer_len) {
+    // zero buffer before freeing it
+	volatile uint8_t *p = (volatile uint8_t *)buffer;
+
+	while(buffer_len--)
+		*p++ = 0;
+    free(buffer);
+}
+
+const crypt_token_handler OPTEE_token = {
+	.name  = FDE_JSON_TYPE_OPTEE,
+	.open  = optee_open_token,
+    .buffer_free = sec_free_buffer,
+};
+
+int unlock_from_token(struct crypt_device *cd,
+                      int token_id,
+                      const char *label,
+                      uint32_t activate_flags) {
+
+    int ret = EXIT_SUCCESS;
+    char *unsealed_key_buf = NULL;
+    size_t unsealed_key_buf_len = 0;
+    int key_slot_id;
+    ret = unseal_key_from_token(cd,
+                                token_id,
+                                &unsealed_key_buf,
+                                &unsealed_key_buf_len,
+                                &key_slot_id);
+    if (ret != EXIT_SUCCESS || unsealed_key_buf == NULL) {
+        return ret;
+    }
+    // unlock
+    return unlock_volume(cd,
+                        label,
+                        unsealed_key_buf,
+                        unsealed_key_buf_len,
+                        key_slot_id,
+                        activate_flags);
+}
+
+int activate_by_token(struct crypt_device *cd,
+                      int token_id,
+                      const char *label,
+                      uint32_t activate_flags) {
+
+    int ret = EXIT_SUCCESS;
+    ret = crypt_token_register(&OPTEE_token);
+    if (ret<0) {
+        ree_log(REE_ERROR, "Failed to register token handler: 0x%X", ret);
+        return ret;
+    }
+
+    ret = crypt_activate_by_token(cd, label, token_id, NULL, activate_flags);
+    if (ret < 0) {
+        ree_log(REE_WARNING, "Key slot activation by token %d failed (%d), trying any token.", ret);
+        ret = crypt_activate_by_token(cd, label, CRYPT_ANY_TOKEN, NULL, activate_flags);
+        if (ret < 0) {
+            ree_log(REE_ERROR, "Key slot activation failed (%d).", ret);
+            return ret;
+        }
+    }
+    ree_log(REE_INFO, "Key slot activated with token %d.", ret);
+    return EXIT_SUCCESS;
 }
 
 static int format_and_add_key(struct crypt_device *cd,
@@ -637,16 +729,8 @@ static int format_and_add_key(struct crypt_device *cd,
 
     cleanup:
         if (key)
-            free(key);
+            sec_free_buffer(key, key_len);
         return ret;
-}
-
-int unlock_from_any_token(struct crypt_device *cd,
-                          const char *label,
-                          uint32_t activate_flags) {
-    // int maxTokens = crypt_token_max(CRYPT_LUKS2);
-    // ree_log(REE_ERROR, "maximum tokens %d.", maxTokens);
-    return EXIT_SUCCESS;
 }
 
 int setup_block_device(const char *path,
@@ -673,17 +757,11 @@ int setup_block_device(const char *path,
                                  CRYPT_TOKEN_ID,
                                  CRYPT_ACTIVATE_FLAG);
     } else {
-        // unseal the key from token and unlock the volume
-        ret =  unlock_from_token(cd,
-                                 CRYPT_TOKEN_ID,
-                                 label,
-                                 CRYPT_ACTIVATE_FLAG);
-        if (ret != 0) {
-            // if we failed, try other tokens
-            ret = unlock_from_any_token(cd,
-                                        label,
-                                        CRYPT_ACTIVATE_FLAG);
-        }
+        // activate device
+        ret = activate_by_token(cd,
+                              CRYPT_TOKEN_ID,
+                              label,
+                              CRYPT_ACTIVATE_FLAG);
     }
     crypt_free(cd);
     return ret;
