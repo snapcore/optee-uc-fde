@@ -60,7 +60,7 @@ static void print_help(void)
     printf("\t\tby default 128bytes buffer is generated unless size is passed\n");
 }
 
-char *get_fde_setup_request() {
+char *get_fde_setup_request(void) {
     FILE *f;
     char *request = NULL;
     char *pos = NULL;
@@ -88,7 +88,7 @@ char *get_fde_setup_request() {
     return request;
 }
 
-int set_fde_setup_request_result(const unsigned char * result, int len) {
+int set_fde_setup_request_result(const unsigned char *result, int len) {
     FILE *out_stream;
     int ret = EXIT_SUCCESS;
     // run snapctl
@@ -117,13 +117,13 @@ int set_result(const unsigned char * result, int len) {
     }
 }
 
-char *get_reveal_key_request() {
+char *get_initrd_fde_request() {
     size_t b_read = 0;
     size_t size_remaining;
     char *request = NULL;
     char *pos = NULL;
 
-    ree_log(REE_DEBUG, "get_reveal_key_request");
+    ree_log(REE_DEBUG, "get_initrd_fde_request");
     request = (char *)malloc(MAX_JSON_BUF_SIZE);
     if (!request) {
        ree_log(REE_ERROR, "Failed to allocate request buffer" );
@@ -257,7 +257,7 @@ int handle_operation_reveal(struct json_object *request_json) {
         return ret;
 }
 
-int handle_operation_lock() {
+int handle_operation_lock(void) {
     return lock_ta();
 }
 
@@ -265,12 +265,10 @@ int handle_operation_setup(struct json_object *request_json) {
     int ret = EXIT_SUCCESS;
     struct json_object *j_key = NULL;
     struct json_object *j_key_name = NULL;
-    struct json_object *j_models = NULL;
     struct json_object *j_response = NULL;
     struct json_object *j_handle = NULL;
     struct json_object *j_sealed_key = NULL;
     json_bool j_ret;
-    const char *key = NULL;
     unsigned char *unsealed_key_buf = NULL;
     unsigned char *sealed_key_buf = NULL;
     unsigned char *handle_buf = NULL;
@@ -475,21 +473,23 @@ int main(int argc, char *argv[]) {
     uint32_t lock;
     unsigned char *buf = NULL;
     char *base64_buf = NULL;
+    char *baseName = NULL;
     char *request_str = NULL;
     size_t buf_len = 0;
-    ree_log(REE_INFO, "main: entry point");
+    baseName = basename(argv[0]);
+    ree_log(REE_INFO, "main: %s entry point", baseName);
     if (argc == 1) {
         // handle hook run scenarios
         // depending on hook type, we pass result on stdout or to snapctl
-        if (!strncmp(basename(argv[0]),
+        if (!strncmp(baseName,
                               FDE_SETUP,
                               strlen(FDE_SETUP))) {
             request_str = get_fde_setup_request();
             snapctl_output = 1;
-        } else if (!strncmp(basename(argv[0]),
+        } else if (!strncmp(baseName,
                             FDE_REVEAL_KEY,
                             strlen(FDE_REVEAL_KEY))) {
-            request_str = get_reveal_key_request();
+            request_str = get_initrd_fde_request();
             snapctl_output = 0;
         } else {
             ree_log(REE_ERROR, "Unknown invocation" );
