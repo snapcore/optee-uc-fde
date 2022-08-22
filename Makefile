@@ -61,7 +61,7 @@ clean:
 
 install:
 	$(echo) '  INSTALL ${DESTDIR}/lib/optee_armtz'
-	if [ -d $(out-dir)/ta ]; then $(q)mkdir -p ${DESTDIR}/lib/optee_armtz; $(q)find $(out-dir)/ta -name \*.ta -exec cp -a {} ${DESTDIR}/lib/optee_armtz \; ;fi
+	$(q)if [ -d $(out-dir)/ta ]; then mkdir -p ${DESTDIR}/lib/optee_armtz; find $(out-dir)/ta -name \*.ta -exec cp -a {} ${DESTDIR}/lib/optee_armtz \; ;fi
 	$(echo) '  INSTALL ${DESTDIR}/usr/bin'
 	$(q)mkdir -p ${DESTDIR}/usr/bin
 	$(q)cp -a $(out-dir)/fde_key_manager/fde-key-manager ${DESTDIR}/usr/bin
