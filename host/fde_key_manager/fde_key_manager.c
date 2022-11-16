@@ -47,6 +47,13 @@
 #define FDE_JSON_HANDLE            "handle"
 #define FDE_JSON_RESULT_FEATURES   "{\"features\":[]}"
 
+#if !defined(TRUE)
+  #define TRUE ((json_bool)1)
+#endif
+#if !defined(FALSE)
+  #define FALSE ((json_bool)0)
+#endif
+
 // by default we print sesult to stdout
 static int snapctl_output = 0;
 
