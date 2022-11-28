@@ -117,10 +117,16 @@ int set_fde_setup_request_result(const unsigned char *result, int len) {
 }
 
 int set_result(const unsigned char * result, int len) {
+    int ret;
     if (snapctl_output) {
         return set_fde_setup_request_result(result, len);
     } else {
-        return fprintf( stdout, "%s\n",result);
+        ret = fprintf( stdout, "%s\n", result);
+        // ret has number of written bytes, only check report fail / success
+        if (ret > 0) {
+            ret = EXIT_SUCCESS;
+        }
+        return ret;
     }
 }
 
