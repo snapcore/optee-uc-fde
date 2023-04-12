@@ -68,7 +68,7 @@ TEE_Result TA_InvokeCommandEntryPoint( void __maybe_unused *session_context,
         case TA_CMD_KEY_DECRYPT:
             // make sure crypto opperations are not locked
             if ( _ta_lock == TA_LOCKED) {
-                DMSG("TA is locked for further decrypt oprerations!!");
+                EMSG("fde_key_handler: TA is locked for further decrypt oprerations!!");
                 return TEE_ERROR_ACCESS_DENIED;
             }
             return key_crypto(TEE_MODE_DECRYPT, paramTypes, params);
@@ -79,7 +79,7 @@ TEE_Result TA_InvokeCommandEntryPoint( void __maybe_unused *session_context,
         case TA_CMD_GEN_RANDOM:
             return generate_random(paramTypes, params);
         default:
-            EMSG("Command ID %#"PRIx32" is not supported", cmd_id);
+            EMSG("fde_key_handler: Command ID %#"PRIx32" is not supported", cmd_id);
             return TEE_ERROR_NOT_SUPPORTED;
     }
 }
@@ -94,7 +94,7 @@ static TEE_Result lock_ta( uint32_t paramTypes,
                                     TEE_PARAM_TYPE_NONE))
         return TEE_ERROR_BAD_PARAMETERS;
 
-    DMSG("Locking TA for further use\n");
+    DMSG("fde_key_handler: Locking TA for further use\n");
     _ta_lock = TA_LOCKED;
     return TEE_SUCCESS;
 }

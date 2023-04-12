@@ -103,13 +103,18 @@ static TEE_Result do_key_encrypt( TEE_OperationHandle crypto_op,
     uint32_t tag_len = TAG_SIZE;
 
     res = TEE_AEInit(crypto_op, handle->iv, IV_SIZE, TAG_SIZE * 8, 0, 0);
-    if (res)
+    if (res) {
+      EMSG("fde_key_handler: TA init failed: %#"PRIx32"\n", res);
       return res;
+    }
 
     res = TEE_AEEncryptFinal(crypto_op, key, key_sz, enc_key,
                              enc_key_sz, handle->tag, &tag_len);
-    if (res || tag_len != TAG_SIZE || *enc_key_sz != key_sz)
-      return TEE_ERROR_SECURITY;
+    if (res || tag_len != TAG_SIZE || *enc_key_sz != key_sz) {
+      EMSG("fde_key_handler: key encrypt failed: [%lu, %lu], [%lu, %lu], %#"PRIx32"\n",
+            tag_len, TAG_SIZE, *enc_key_sz, key_sz, res);
+      res = res ? res: TEE_ERROR_SECURITY;
+    }
 
     return res;
 }
@@ -123,15 +128,20 @@ static TEE_Result do_key_decrypt( TEE_OperationHandle crypto_op,
     uint8_t tag[TAG_SIZE] = { 0 };
 
     res = TEE_AEInit(crypto_op, handle->iv, IV_SIZE, TAG_SIZE * 8, 0, 0);
-    if (res)
+    if (res) {
+      EMSG("fde_key_handler: TA init failed: %#"PRIx32"\n", res);
       return res;
+    }
 
     memcpy(tag, handle->tag, TAG_SIZE);
     res = TEE_AEDecryptFinal(crypto_op, enc_key, enc_key_sz, key,
            key_sz, tag, TAG_SIZE);
 
-    if (res || enc_key_sz != *key_sz)
-      res = TEE_ERROR_SECURITY;
+    if (res || enc_key_sz != *key_sz) {
+      EMSG("fde_key_handler: key decrypt failed: [%lu, %lu], %#"PRIx32"\n",
+           enc_key_sz, *key_sz, res);
+      res = res ? res: TEE_ERROR_SECURITY;
+    }
 
     return res;
 }
@@ -154,7 +164,7 @@ static TEE_Result do_key_crypto( TEE_OperationMode mode,
 
     res = derive_ta_unique_key(huk_key, sizeof(huk_key), handle->nonce, sizeof(handle->nonce));
     if (res) {
-      EMSG("derive_unique_key failed: returned %#"PRIx32, res);
+      EMSG("fde_key_handler: derive_unique_key failed: returned %#"PRIx32, res);
       goto out_op;
     }
 
@@ -182,9 +192,6 @@ static TEE_Result do_key_crypto( TEE_OperationMode mode,
     } else {
       TEE_Panic(0);
     }
-    if (res) {
-      EMSG("do_key_*crypt failed: returned %#"PRIx32"\n", res);
-    }
 
     out_key:
       TEE_FreeTransientObject(hkey);
@@ -208,7 +215,7 @@ TEE_Result key_crypto( TEE_OperationMode mode,
     uint32_t handle_buf_size = 0;
     uint8_t *rng_buf = NULL;
 
-    DMSG("Handle key crypto");
+    DMSG("fde_key_handler: Handle key crypto");
 
     if (mode == TEE_MODE_ENCRYPT) {
       if (paramTypes != TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INPUT,
@@ -277,7 +284,7 @@ TEE_Result key_crypto( TEE_OperationMode mode,
 TEE_Result generate_random( uint32_t types, TEE_Param params[TEE_NUM_PARAMS]) {
     uint8_t *rng_buf = NULL;
 
-    DMSG("generate_random");
+    DMSG("fde_key_handler: generate_random");
 
     if (types != TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_OUTPUT,
                                  TEE_PARAM_TYPE_NONE,
