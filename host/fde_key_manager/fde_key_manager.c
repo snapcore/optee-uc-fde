@@ -33,6 +33,7 @@
 
 #define FDE_SETUP "fde-setup"
 #define FDE_REVEAL_KEY "fde-reveal-key"
+#define INITRAMFS_PREFIX "/usr/"
 
 #define SNAPCTL "snapctl"
 
@@ -67,7 +68,7 @@ static void print_help(void)
     printf("\t\tby default 128bytes buffer is generated unless size is passed\n");
 }
 
-char *get_fde_setup_request(void) {
+char *get_snap_hook_fde_setup_request(void) {
     FILE *f;
     char *request = NULL;
     char *pos = NULL;
@@ -95,7 +96,7 @@ char *get_fde_setup_request(void) {
     return request;
 }
 
-int set_fde_setup_request_result(const unsigned char *result, int len) {
+int set_snap_hook_fde_setup_request_result(const unsigned char *result, int len) {
     FILE *out_stream;
     int ret = EXIT_SUCCESS;
     // run snapctl
@@ -119,7 +120,7 @@ int set_fde_setup_request_result(const unsigned char *result, int len) {
 int set_result(const unsigned char * result, int len) {
     int ret;
     if (snapctl_output) {
-        return set_fde_setup_request_result(result, len);
+        return set_snap_hook_fde_setup_request_result(result, len);
     } else {
         ret = fprintf( stdout, "%s\n", result);
         // ret has number of written bytes, only check report fail / success
@@ -497,8 +498,16 @@ int main(int argc, char *argv[]) {
         if (!strncmp(baseName,
                               FDE_SETUP,
                               strlen(FDE_SETUP))) {
-            request_str = get_fde_setup_request();
-            snapctl_output = 1;
+            // check if hook is running within initramfs or as snap hook
+            if (!strncmp(argv[0],
+                         INITRAMFS_PREFIX,
+                         strlen(INITRAMFS_PREFIX))) {
+                request_str = get_initrd_fde_request();
+                snapctl_output = 0;
+            } else {
+                request_str = get_snap_hook_fde_setup_request();
+                snapctl_output = 1;
+            }
         } else if (!strncmp(baseName,
                             FDE_REVEAL_KEY,
                             strlen(FDE_REVEAL_KEY))) {
