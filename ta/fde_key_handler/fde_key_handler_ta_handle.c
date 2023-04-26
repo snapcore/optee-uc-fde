@@ -111,7 +111,7 @@ static TEE_Result do_key_encrypt( TEE_OperationHandle crypto_op,
     res = TEE_AEEncryptFinal(crypto_op, key, key_sz, enc_key,
                              enc_key_sz, handle->tag, &tag_len);
     if (res || tag_len != TAG_SIZE || *enc_key_sz != key_sz) {
-      EMSG("fde_key_handler: key encrypt failed: [%lu, %lu], [%lu, %lu], %#"PRIx32"\n",
+      EMSG("fde_key_handler: key encrypt failed: [%"PRIu32", %"PRIu32"], [%"PRIu32", %"PRIu32"], %#"PRIx32"\n",
             tag_len, TAG_SIZE, *enc_key_sz, key_sz, res);
       res = res ? res: TEE_ERROR_SECURITY;
     }
@@ -138,7 +138,7 @@ static TEE_Result do_key_decrypt( TEE_OperationHandle crypto_op,
            key_sz, tag, TAG_SIZE);
 
     if (res || enc_key_sz != *key_sz) {
-      EMSG("fde_key_handler: key decrypt failed: [%lu, %lu], %#"PRIx32"\n",
+      EMSG("fde_key_handler: key decrypt failed: [%"PRIx32", %"PRIx32"], %#"PRIx32"\n",
            enc_key_sz, *key_sz, res);
       res = res ? res: TEE_ERROR_SECURITY;
     }
