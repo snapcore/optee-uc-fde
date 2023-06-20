@@ -33,7 +33,6 @@
 
 #define FDE_SETUP "fde-setup"
 #define FDE_REVEAL_KEY "fde-reveal-key"
-#define INITRAMFS_PREFIX "/usr/"
 
 #define SNAPCTL "snapctl"
 
@@ -498,10 +497,10 @@ int main(int argc, char *argv[]) {
         if (!strncmp(baseName,
                               FDE_SETUP,
                               strlen(FDE_SETUP))) {
-            // check if hook is running within initramfs or as snap hook
-            if (!strncmp(argv[0],
-                         INITRAMFS_PREFIX,
-                         strlen(INITRAMFS_PREFIX))) {
+            // check if hook is running within initramfs or as a snap hook
+            // there is not a perfect way to do this, but certain files should
+            // only exist within initrd context
+            if (access("/usr/bin/"FDE_REVEAL_KEY, F_OK) == 0) {
                 request_str = get_initrd_fde_request();
                 snapctl_output = 0;
             } else {
