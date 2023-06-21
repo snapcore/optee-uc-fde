@@ -500,7 +500,7 @@ int main(int argc, char *argv[]) {
             // check if hook is running within initramfs or as a snap hook
             // there is not a perfect way to do this, but certain files should
             // only exist within initrd context
-            if (access("/usr/bin/"FDE_REVEAL_KEY, F_OK) == 0) {
+            if (access("/etc/initrd-release", F_OK) == 0) {
                 request_str = get_initrd_fde_request();
                 snapctl_output = 0;
             } else {
