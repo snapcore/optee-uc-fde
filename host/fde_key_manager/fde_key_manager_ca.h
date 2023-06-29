@@ -7,9 +7,9 @@
 #define FDE_KEY_MANAGER_H_
 
 // helper wrapper around mbedtls_base64_encode function
-extern char *basee64_encode(const unsigned char *in_buf, size_t in_buf_len);
+extern char *base64_encode(const unsigned char *in_buf, size_t in_buf_len);
 // helper wrapper around mbedtls_base64_decode function
-extern unsigned char *basee64_decode(const char *in_buf,
+extern unsigned char *base64_decode(const char *in_buf,
                                      size_t in_buf_len, size_t *buf_len);
 
 extern TEEC_Result encrypt_key(unsigned char *in_buf, size_t in_buf_len,

@@ -169,7 +169,7 @@ int handle_operation_reveal(struct json_object *request_json) {
         ret = EXIT_FAILURE;
         goto cleanup;
     }
-    sealed_key_buf = basee64_decode(json_object_get_string(j_key),
+    sealed_key_buf = base64_decode(json_object_get_string(j_key),
                                     strlen(json_object_get_string(j_key)),
                                     &sealed_key_buf_len);
 
@@ -189,7 +189,7 @@ int handle_operation_reveal(struct json_object *request_json) {
        ret = EXIT_FAILURE;
        goto cleanup;
     }
-    handle_buf = basee64_decode(json_object_get_string(j_handle),
+    handle_buf = base64_decode(json_object_get_string(j_handle),
                                strlen(json_object_get_string(j_handle)),
                                &handle_buf_len);
     if (!handle_buf) {
@@ -218,7 +218,7 @@ int handle_operation_reveal(struct json_object *request_json) {
         goto cleanup;
     }
 
-    unsealed_key = basee64_encode(unsealed_key_buf, unsealed_key_buf_len);
+    unsealed_key = base64_encode(unsealed_key_buf, unsealed_key_buf_len);
     if (!unsealed_key) {
         ree_log(REE_ERROR, "Failed to base64 encode unsealed key");
         goto cleanup;
@@ -292,7 +292,7 @@ int handle_operation_setup(struct json_object *request_json) {
         ret = EXIT_FAILURE;
         goto cleanup;
     }
-    unsealed_key_buf = basee64_decode(json_object_get_string(j_key),
+    unsealed_key_buf = base64_decode(json_object_get_string(j_key),
                                       strlen(json_object_get_string(j_key)),
                                       &unsealed_key_buf_len);
     if (!unsealed_key_buf) {
@@ -337,7 +337,7 @@ int handle_operation_setup(struct json_object *request_json) {
     }
 
     // encode sealed key with base64
-    sealed_key = basee64_encode(sealed_key_buf, sealed_key_buf_len);
+    sealed_key = base64_encode(sealed_key_buf, sealed_key_buf_len);
     if (!sealed_key) {
         ree_log(REE_ERROR, "Failed to base64 encode sealed key");
         goto cleanup;
@@ -358,7 +358,7 @@ int handle_operation_setup(struct json_object *request_json) {
     // ownership of j_sealed_key has been taken by j_response
     j_sealed_key =  NULL;
 
-    handle = basee64_encode(handle_buf, handle_buf_len);
+    handle = base64_encode(handle_buf, handle_buf_len);
     if (!handle) {
         ree_log(REE_ERROR, "Failed to base64 encode key handle");
         goto cleanup;
@@ -555,7 +555,7 @@ int main(int argc, char *argv[]) {
             ret = EXIT_FAILURE;
             goto cleanup;
         }
-        base64_buf = basee64_encode(buf, buf_len);
+        base64_buf = base64_encode(buf, buf_len);
         if (!base64_buf) {
             ree_log(REE_ERROR, "Failed to encode generated random buffer\n");
             ret = EXIT_FAILURE;

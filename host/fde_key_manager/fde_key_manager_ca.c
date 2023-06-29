@@ -28,13 +28,13 @@
 
 #define MAX_BASE64_BUF_SIZE (MAX_BUF_SIZE / 3 * 4 + 4)
 // helper wrapper around mbedtls_base64_encode function
-char *basee64_encode(const unsigned char *in_buf, size_t in_buf_len) {
+char *base64_encode(const unsigned char *in_buf, size_t in_buf_len) {
     int ret = EXIT_SUCCESS;
     size_t base64_len;
     char *encoded_buffer = NULL;
     encoded_buffer = (char *)malloc(MAX_BASE64_BUF_SIZE);
     if (!encoded_buffer) {
-        ree_log(REE_ERROR, "basee64_encode failed to allock buffer");
+        ree_log(REE_ERROR, "base64_encode failed to allock buffer");
         return NULL;
     }
     ret = mbedtls_base64_encode(encoded_buffer,
@@ -43,12 +43,12 @@ char *basee64_encode(const unsigned char *in_buf, size_t in_buf_len) {
                               in_buf,
                               in_buf_len );
     if (ret) {
-        ree_log(REE_ERROR, "basee64_encode failed with: 0x%x", ret);
+        ree_log(REE_ERROR, "base64_encode failed with: 0x%x", ret);
         free(encoded_buffer);
         encoded_buffer = NULL;
     }
     if (strlen(encoded_buffer) != base64_len) {
-        ree_log(REE_ERROR, "basee64_encode: string lengths do not align");
+        ree_log(REE_ERROR, "base64_encode: string lengths do not align");
         free(encoded_buffer);
         encoded_buffer = NULL;
     }
@@ -56,16 +56,16 @@ char *basee64_encode(const unsigned char *in_buf, size_t in_buf_len) {
 }
 
 // helper wrapper around mbedtls_base64_decode function
-unsigned char *basee64_decode(const char *in_buf, size_t in_buf_len, size_t *buf_len) {
+unsigned char *base64_decode(const char *in_buf, size_t in_buf_len, size_t *buf_len) {
     int ret = EXIT_SUCCESS;
     char *decoded_buffer = NULL;
     if (strlen(in_buf) != in_buf_len) {
-        ree_log(REE_ERROR, "basee64_decode: string lengths do not align");
+        ree_log(REE_ERROR, "base64_decode: string lengths do not align");
         return NULL;
     }
     decoded_buffer = (char *)malloc(MAX_BUF_SIZE);
     if (!decoded_buffer) {
-        ree_log(REE_ERROR, "basee64_decode failed allock fail");
+        ree_log(REE_ERROR, "base64_decode failed allock fail");
         return NULL;
     }
     ret = mbedtls_base64_decode(decoded_buffer,
@@ -74,7 +74,7 @@ unsigned char *basee64_decode(const char *in_buf, size_t in_buf_len, size_t *buf
                                 in_buf,
                                 in_buf_len );
     if (ret) {
-        ree_log(REE_ERROR, "basee64_decode failed with: 0x%x", ret);
+        ree_log(REE_ERROR, "base64_decode failed with: 0x%x", ret);
         free(decoded_buffer);
         decoded_buffer = NULL;
     }
