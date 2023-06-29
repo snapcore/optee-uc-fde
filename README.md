@@ -13,10 +13,16 @@ REE application and TA assume optee version 3.12+  [1]
 
 There 3 scenarios for host binary to be executed in.
 
-## As kernel snap hook during system install: executable `fde-setup`
-Operation to be performed is requested from`snapctl` with parameter `fde-setup-request`.
-Returned request is json formatted string. Result of the operation
-is passed back to `snapctl` as json formatted sting with parameter `fde-setup-result`.
+## During system install: executable `fde-setup`
+This hook can be executed either as kernel snap hook in snap environment or
+as hook within initramfs runtime.
+When running as kernel snap hook, operation to be performed is requested
+from`snapctl` with parameter `fde-setup-request`. Returned request is json
+formatted string. Result of the operation is passed back to `snapctl` as json
+formatted sting with parameter `fde-setup-result`.
+When running within initramfs runtime. Operation to be performed is passed as
+json formated string on stdin. Result of the operation is returned
+as json formatted string on stdout.
 * supported operations:
   * initial-setup: encrypt passed key, generate handle is supported.
     * request: `{"op": "initial-setup","key": "base64-encoded-bytes",

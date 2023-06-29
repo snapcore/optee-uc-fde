@@ -444,10 +444,15 @@ int handle_fde_operation(char *request_str) {
 }
 
 /**
- * There are two main modes of operation, plus test mode.
- *   Currently there are two data formats, one is provisional
- * - invoked within initrd: executable 'fde-reveal-key'
- *   input is passed as json through stdin
+ * There are two fde hooks, 'fde-reveal-key' and 'fde-setup'
+ * 'fde-setup' hook can be called in 2 scenarios, as true snap hook
+ * and as hook within initranfs. Depending on the runtime environment, hook
+ * uses stdin/stdout or `snapctl` as way to retrieve input and pass the result.
+ * `snapctl fde-setup-request` and `snapctl fde-setup-result` are used in snap hook
+ * runtime environment.
+ * Input and output are always passed as formated json.
+ *
+ * - 'fde-reveal-key':
  *   - supported operations:
  *     - reveal:
  *         - request: { "op": "reveal", "sealed-key": "base64-encoded-bytes",
@@ -456,10 +461,8 @@ int handle_fde_operation(char *request_str) {
  *     - lock:
  *         - request: { "op": "lock" }
  *         - result:
- *   result is passed as json through stdout
- * - invoked as hook: executable 'fde-setup'
- *   input is fetched as json by snapctl `fde-setup-request`
- *   result is passed by base64/json `snapctl fde-setup-result`
+ *
+ * - 'fde-setup':
  *   - supported operations:
  *     - fde-setup:
  *       - request: {"op": "initial-setup","key": "base64-encoded-bytes",
