@@ -53,6 +53,7 @@ static void print_help(void)
     printf("\t--lock-ta: lock TA for any crypto operation till next reboot\n");
     printf("\t--generate-random [len in bytes]: generate random buffer and print it coded in base64\n");
     printf("\t\tby default 128bytes buffer is generated unless size is passed\n");
+    printf("\t--encrypt-decrypt-selftest: encrypt and decrypt selftest\n");
 }
 
 char *get_snap_hook_fde_setup_request(void) {
@@ -395,6 +396,111 @@ int handle_operation_setup(struct json_object *request_json) {
         return ret;
 }
 
+int encrypt_decrypt_selftest() {
+    int ret = EXIT_SUCCESS;
+    unsigned char *key_buf = NULL;
+    unsigned char *handle_buf = NULL;
+    unsigned char *sealed_key_buf = NULL;
+    unsigned char *unsealed_key_buf = NULL;
+    size_t key_buf_len = 0;
+    size_t handle_buf_len = 0;
+    size_t sealed_key_buf_len = 0;
+    size_t unsealed_key_buf_len = 0;
+    char *base64_key = NULL;
+    char *sealed_key = NULL;
+    char *unsealed_key = NULL;
+
+    key_buf_len = HANDLE_SIZE;
+    key_buf = generate_rng(key_buf_len);
+    if (!key_buf) {
+        ree_log(REE_ERROR, "Failed to generate random key\n");
+        ret = EXIT_FAILURE;
+        goto cleanup;
+    }
+
+    base64_key = base64_encode(key_buf, key_buf_len);
+    if (!base64_key) {
+        ree_log(REE_ERROR, "Failed to encode generated key\n");
+        ret = EXIT_FAILURE;
+        goto cleanup;
+    } else {
+        printf("Key: %s\n", base64_key);
+    }
+
+    // encrypt key
+    handle_buf_len = HANDLE_SIZE;
+    handle_buf = (char *)malloc(HANDLE_SIZE);
+    sealed_key_buf_len = MAX_BUF_SIZE;
+    sealed_key_buf = (char *)malloc(MAX_BUF_SIZE);
+    if (!sealed_key_buf) {
+        ree_log(REE_ERROR, "sealed_key buf alloc failed");
+        ret = EXIT_FAILURE;
+        goto cleanup;
+    }
+
+    ret = encrypt_key(key_buf,
+                      key_buf_len,
+                      handle_buf,
+                      &handle_buf_len,
+                      sealed_key_buf,
+                      &sealed_key_buf_len);
+    if (ret) {
+        ree_log(REE_ERROR, "Key encrypt crypto operation failed: 0x%X", ret);
+        goto cleanup;
+    }
+
+    // encode sealed key with base64
+    sealed_key = base64_encode(sealed_key_buf, sealed_key_buf_len);
+    if (!sealed_key) {
+        ree_log(REE_ERROR, "Failed to encode sealed key");
+        goto cleanup;
+    } else {
+        printf("Sealed Key: %s\n", sealed_key);
+    }
+
+    // call crypto operation
+    unsealed_key_buf_len = MAX_BUF_SIZE;
+    unsealed_key_buf = (unsigned char *)malloc(unsealed_key_buf_len);
+
+    ret = decrypt_key(sealed_key_buf,
+                      sealed_key_buf_len,
+                      handle_buf,
+                      handle_buf_len,
+                      unsealed_key_buf,
+                      &unsealed_key_buf_len);
+    if (ret) {
+        ree_log(REE_ERROR, "Key decrypt crypto operation failed: 0x%X", ret);
+        goto cleanup;
+    }
+
+    unsealed_key = base64_encode(unsealed_key_buf, unsealed_key_buf_len);
+    if (!unsealed_key) {
+        ree_log(REE_ERROR, "Failed to encode unsealed key\n");
+        ret = EXIT_FAILURE;
+        goto cleanup;
+    } else {
+        printf("Unsealed Key: %s\n", unsealed_key);
+    }
+
+    cleanup:
+        if (key_buf)
+            free(key_buf);
+        if (base64_key)
+            free(base64_key);
+        if (handle_buf)
+            free(handle_buf);
+        if (sealed_key_buf)
+            free(sealed_key_buf);
+        if (unsealed_key_buf)
+            free(unsealed_key_buf);
+        if (sealed_key)
+            free(sealed_key);
+        if (unsealed_key)
+            free(unsealed_key);
+
+        return ret;
+}
+
 int handle_operation_feature(struct json_object *request_json) {
     // this operation is not supported, return default empty output
     return set_result(FDE_JSON_RESULT_FEATURES,
@@ -526,6 +632,7 @@ int main(int argc, char *argv[]) {
      *  --ta-lock-status: get TA lock status
      *  --lock-ta: lock TA
      *  --generate-random: generate random number
+     *  --enrypt-decrypt-selftest: encrypt and decrypt selftest
      *  --help: print help
      */
     if (!strcmp("--ta-lock-status", argv[1])) {
@@ -561,6 +668,11 @@ int main(int argc, char *argv[]) {
             ret = EXIT_FAILURE;
         } else {
             printf("%s\n",base64_buf);
+        }
+    } else if (!strcmp("--encrypt-decrypt-selftest", argv[1])) {
+        ret = encrypt_decrypt_selftest();
+        if(ret != TEEC_SUCCESS) {
+            printf("Failed to pass encrypt and decrypt selftest, ret 0x%x\n", ret);
         }
     } else if (!strcmp("--help", argv[1])) {
         print_help();
