@@ -1,0 +1,23 @@
+[Unit]
+Description=Automatic fde helper to encrypt custom partitions
+DefaultDependencies=no
+After=systemd-tmpfiles-setup.service
+After=systemd-modules-load.service
+Wants=systemd-modules-load.service
+After=systemd-udev-settle.service
+Wants=systemd-udev-settle.service
+Before=the-tool.service
+# only run if feature enabled by kernel cmd line
+ConditionKernelCommandLine=fde_helper=enabled
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/fde-helper@%i
+ExecStart=/usr/bin/fde-helper --device ${DEVICE} --label ${LABEL} --pbkdf-memory ${PBKDF_MEMORY} --pbkdf-force-iterations ${PBKDF_ITERATIONS} --pbkdf-parallel ${PBKDF_PARALLEL}
+RemainAfterExit=true
+
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=basic.target
